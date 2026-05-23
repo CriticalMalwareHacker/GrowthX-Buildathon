@@ -1,13 +1,18 @@
-import { useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 
 export const ParallaxBackground = ({ url = '/background.png', speed = 0.5 }) => {
   const mesh = useRef();
-  const texture = useTexture(url);
-  
-  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  const sourceTexture = useTexture(url);
+  const texture = useMemo(() => {
+    const clonedTexture = sourceTexture.clone();
+    clonedTexture.wrapS = THREE.RepeatWrapping;
+    clonedTexture.wrapT = THREE.RepeatWrapping;
+    clonedTexture.needsUpdate = true;
+    return clonedTexture;
+  }, [sourceTexture]);
 
   useFrame((state, delta) => {
     if (!mesh.current) return;

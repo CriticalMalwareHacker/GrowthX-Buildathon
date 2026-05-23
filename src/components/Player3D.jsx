@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useAnimations, useGLTF, useKeyboardControls } from '@react-three/drei';
-import { RigidBody, vec3 } from '@react-three/rapier';
+import { RigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 
 export const Player3D = ({ modelUrl = '/character.glb' }) => {
@@ -10,7 +10,7 @@ export const Player3D = ({ modelUrl = '/character.glb' }) => {
   const [currentAnimation, setCurrentAnimation] = useState('Idle');
   
   // Load model
-  const { nodes, materials, animations } = useGLTF(modelUrl);
+  const { nodes, animations } = useGLTF(modelUrl);
   const { actions } = useAnimations(animations, group);
 
   const [, getKeys] = useKeyboardControls();
@@ -22,7 +22,7 @@ export const Player3D = ({ modelUrl = '/character.glb' }) => {
     }
   }, [currentAnimation, actions]);
 
-  useFrame((state, delta) => {
+  useFrame(() => {
     if (!rb.current) return;
 
     const { forward, backward, left, right, jump } = getKeys();

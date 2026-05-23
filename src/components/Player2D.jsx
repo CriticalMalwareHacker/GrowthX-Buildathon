@@ -13,7 +13,7 @@ export const Player2D = ({ spriteUrl = '/sprite.png' }) => {
   useFrame(() => {
     if (!rb.current) return;
 
-    const { forward, backward, left, right, jump } = getKeys();
+    const { left, right, jump } = getKeys();
     const velocity = rb.current.linvel();
     const speed = 5;
 
