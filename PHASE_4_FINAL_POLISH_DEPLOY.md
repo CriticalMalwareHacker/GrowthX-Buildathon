@@ -1,395 +1,643 @@
 # Phase 4 — Final Polish, Juice & Deploy
 **Time budget:** 3:15 → 4:00 (last 45 minutes)  
-**Goal:** Ship a game that looks and feels finished. Add juice, build the UI, deploy to Vercel.  
+**Goal:** Ship a game that looks and feels finished. Full cyberpunk UI, juice effects, deployed to Vercel.  
 **Rule:** Do juice in order — highest ROI first. Stop adding features at 3:45. The last 15 minutes are for deploy only.
+
+---
+
+## Design System — Cyberpunk Theme
+
+Brief your AI pilot with this entire block before building any UI component.
+
+```
+We are using a cyberpunk aesthetic for all UI. Apply this design system to every screen.
+
+COLOR TOKENS:
+  --cyber-bg:        #05050f   (near-black, deep navy)
+  --cyber-surface:   #0d0d1f   (card/panel background)
+  --cyber-border:    #1a1a3a   (subtle panel borders)
+  --cyber-cyan:      #00fff0   (primary neon — titles, active states, glows)
+  --cyber-magenta:   #ff00aa   (secondary neon — danger, death, alerts)
+  --cyber-yellow:    #f0ff00   (gold medal, score highlights)
+  --cyber-green:     #00ff88   (checkpoints, success, level complete)
+  --cyber-muted:     #4a4a7a   (locked states, placeholder text)
+  --cyber-text:      #c8d0e8   (body text)
+
+TYPOGRAPHY:
+  Headings:  "Press Start 2P" (Google Fonts) — pixel/retro feel
+  Body/UI:   "Share Tech Mono" (Google Fonts) — clean mono, readable
+  Add both to index.html:
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+
+BORDERS & CORNERS:
+  All panels use clip-path for angled corners (cyberpunk "cut corner" style):
+  clip-path: polygon(12px 0%, 100% 0%, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0% 100%, 0% 12px)
+  Border: 1px solid var(--cyber-cyan)
+  Box-shadow: 0 0 12px rgba(0,255,240,0.25)
+
+GLITCH EFFECT (titles only):
+  @keyframes glitch {
+    0%, 90%, 100% { clip-path: none; transform: none; }
+    92% { clip-path: polygon(0 20%, 100% 20%, 100% 40%, 0 40%); transform: translate(-3px, 0); }
+    94% { clip-path: polygon(0 60%, 100% 60%, 100% 80%, 0 80%); transform: translate(3px, 0); }
+    96% { clip-path: none; transform: translate(-1px, 0); }
+  }
+  .glitch-title { animation: glitch 4s infinite; }
+
+SCANLINES (all full-screen panels):
+  .scanlines::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      transparent, transparent 2px,
+      rgba(0,0,0,0.15) 2px, rgba(0,0,0,0.15) 4px
+    );
+    pointer-events: none;
+    z-index: 1;
+  }
+
+BUTTONS:
+  Default:  transparent bg, 1px solid --cyber-cyan border, --cyber-cyan color
+            font: Share Tech Mono, letter-spacing 0.12em, uppercase
+            hover: bg rgba(0,255,240,0.08), box-shadow 0 0 18px rgba(0,255,240,0.45)
+  Danger:   same but magenta
+  Success:  same but green
+  Disabled: muted border/color, cursor: not-allowed, no hover
+
+NEON GLOW on text:
+  text-shadow: 0 0 8px currentColor, 0 0 20px currentColor
+```
 
 ---
 
 ## What "Done" Looks Like
 
-- [ ] Death screen with instant retry button
-- [ ] Level complete screen with score, medal, and next level button
-- [ ] Timer and score visible on HUD during play
+- [ ] Global cyberpunk tokens + fonts wired in index.html / index.css
+- [ ] Main menu — cyberpunk, level cards, lock state, best times, controls hint
+- [ ] Death screen — magenta glitch, retry + level select
+- [ ] Level complete — green/cyan, score breakdown, medal pop
+- [ ] HUD — timer (red pulse under 20s), score, boost bar, dash cooldown
 - [ ] Landing camera shake
-- [ ] Speed lines during sprint/boost
-- [ ] Jump squash/stretch on player mesh
-- [ ] Checkpoint chime + green ring on activation
+- [ ] Speed vignette + chroma shift during boost
+- [ ] Jump squash/stretch
+- [ ] Checkpoint green burst + chime
 - [ ] Laser warning pulse
-- [ ] Game deployed to Vercel with a live URL
+- [ ] Deployed to Vercel with a live URL
 
 ---
 
 ## Juice Priority Order
 
-Implement in this exact order. If time runs short, stop at whatever step you're on and go deploy.
+Implement in this exact order. Stop at whatever step you reach by 3:45 and deploy.
 
-| Priority | Effect | Time to implement |
+| Priority | Item | Time |
 |---|---|---|
-| 1 | Death screen + retry button | 5 min |
-| 2 | Level complete screen + medal | 8 min |
-| 3 | HUD (timer + score) | 5 min |
-| 4 | Landing camera shake | 5 min |
-| 5 | Speed lines | 8 min |
-| 6 | Jump squash/stretch | 5 min |
-| 7 | Checkpoint visual polish | 4 min |
-| 8 | Laser warning pulse | 4 min |
-| 9 | Boost FOV ease | 3 min |
-| 10 | Dash afterimage | 5 min |
+| 1 | Global tokens + fonts in index.html/css | 3 min |
+| 2 | Main menu — cyberpunk redesign | 8 min |
+| 3 | Death screen — cyberpunk redesign | 5 min |
+| 4 | Level complete — cyberpunk redesign | 8 min |
+| 5 | HUD — cyberpunk redesign | 6 min |
+| 6 | Landing camera shake | 4 min |
+| 7 | Speed vignette + chroma shift | 5 min |
+| 8 | Jump squash/stretch | 4 min |
+| 9 | Checkpoint visual polish | 3 min |
+| 10 | Laser warning pulse | 3 min |
 | **STOP** | **→ Deploy at 3:45** | — |
 
 ---
 
-## Step 1 — Death Screen
+## Step 1 — Global Setup
 
 ```
-Create src/ui/DeathScreen.jsx.
+In index.html <head>:
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 
-Show this overlay when gameStatus === "dead" in the Zustand store.
+In index.css — replace everything with:
 
-Design:
-- Full screen dark overlay (rgba black, 0.75 opacity)
-- Large text: "YOU DIED"
-- Smaller text: "Level [N]"
-- A single "RETRY" button — large, easy to click, centred on screen
+:root {
+  --cyber-bg:       #05050f;
+  --cyber-surface:  #0d0d1f;
+  --cyber-border:   #1a1a3a;
+  --cyber-cyan:     #00fff0;
+  --cyber-magenta:  #ff00aa;
+  --cyber-yellow:   #f0ff00;
+  --cyber-green:    #00ff88;
+  --cyber-muted:    #4a4a7a;
+  --cyber-text:     #c8d0e8;
+}
 
-On RETRY click:
-- Call startLevel(currentLevel) from useGameStore
-- This resets the timer, score, and checkpoint to level defaults
+body {
+  background: var(--cyber-bg);
+  font-family: 'Share Tech Mono', monospace;
+  color: var(--cyber-text);
+  margin: 0;
+  overflow: hidden;
+}
 
-The overlay must appear in under 0.5 sec of the death event.
-Use a CSS fade-in animation (opacity 0 → 1 over 0.3 sec).
+.cyber-panel {
+  clip-path: polygon(12px 0%, 100% 0%, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0% 100%, 0% 12px);
+  background: var(--cyber-surface);
+  border: 1px solid var(--cyber-cyan);
+  box-shadow: 0 0 12px rgba(0,255,240,0.2), inset 0 0 24px rgba(0,255,240,0.04);
+  position: relative;
+}
 
-Mount this as an HTML overlay on top of the Canvas in App.jsx using absolute positioning.
-```
+.scanlines::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    transparent, transparent 2px,
+    rgba(0,0,0,0.15) 2px, rgba(0,0,0,0.15) 4px
+  );
+  pointer-events: none;
+  z-index: 1;
+}
 
----
+@keyframes glitch {
+  0%, 90%, 100% { clip-path: none; transform: none; }
+  92% { clip-path: polygon(0 20%, 100% 20%, 100% 40%, 0 40%); transform: translate(-3px, 0); }
+  94% { clip-path: polygon(0 60%, 100% 60%, 100% 80%, 0 80%); transform: translate(3px, 0); }
+  96% { clip-path: none; transform: translate(-1px, 0); }
+}
 
-## Step 2 — Level Complete Screen
+.glitch-title {
+  animation: glitch 4s infinite;
+  color: var(--cyber-cyan);
+  text-shadow: 0 0 8px var(--cyber-cyan), 0 0 24px var(--cyber-cyan);
+  font-family: 'Press Start 2P', monospace;
+}
 
-```
-Create src/ui/LevelComplete.jsx.
-
-Show this overlay when gameStatus === "levelComplete".
-
-Design:
-- Full screen overlay
-- Large text: "LEVEL COMPLETE"
-- Score breakdown:
-    Time Remaining: [X] sec  × 10 = [X] pts
-    Orbs Collected: [X]      × 10 = [X] pts
-    ─────────────────────────────────────────
-    Total Score: [X]
-- Medal display:
-    Gold trophy if time <= targetTimes.gold
-    Silver trophy if time <= targetTimes.silver
-    Bronze trophy if time <= targetTimes.bronze
-    Show medal with a simple CSS animated bounce on appear
-- Two buttons:
-    "NEXT LEVEL" (disabled and greyed out if on Level 3)
-    "RETRY" (to beat your time)
-- "YOU WIN" text replaces "LEVEL COMPLETE" when Level 3 is beaten
-
-Pull score and timeRemaining from the Zustand store.
-Pull targetTimes from the current level config object.
-```
-
----
-
-## Step 3 — HUD
-
-```
-Create src/ui/HUD.jsx. Mount it as an HTML overlay in App.jsx.
-
-Elements:
-1. Timer (top centre)
-   - Large monospace font
-   - Format: MM:SS (e.g. "2:45")
-   - Turns red and pulses when timeRemaining < 20 sec
-   - Use CSS animation: color: red, scale pulse 1.0→1.1 over 0.5 sec repeat
-
-2. Score (top right)
-   - Current score number
-   - Brief +10 pop-up animation when an orb is collected (float up and fade out)
-
-3. Level indicator (top left)
-   - "LEVEL 1 / 3" etc.
-
-4. Boost indicator (bottom centre, only when boost is active)
-   - A horizontal bar that depletes over the 2 sec boost duration
-   - Blue colour matching the boost pad
-
-5. Dash cooldown (bottom right, small)
-   - A small circle that fills up over 2 sec after a dash
-   - Grey when on cooldown, white when ready
-
-Keep all styling minimal — dark background pill containers, white text, no clutter.
-Use the font "Press Start 2P" from Google Fonts for the timer and score for arcade feel.
-Add this to index.html: <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+.cyber-btn {
+  background: transparent;
+  border: 1px solid var(--cyber-cyan);
+  color: var(--cyber-cyan);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 10px 24px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+}
+.cyber-btn:hover {
+  background: rgba(0,255,240,0.08);
+  box-shadow: 0 0 18px rgba(0,255,240,0.45);
+}
+.cyber-btn.danger { border-color: var(--cyber-magenta); color: var(--cyber-magenta); }
+.cyber-btn.danger:hover { background: rgba(255,0,170,0.08); box-shadow: 0 0 18px rgba(255,0,170,0.45); }
+.cyber-btn.success { border-color: var(--cyber-green); color: var(--cyber-green); }
+.cyber-btn.success:hover { background: rgba(0,255,136,0.08); box-shadow: 0 0 18px rgba(0,255,136,0.45); }
+.cyber-btn:disabled { border-color: var(--cyber-muted); color: var(--cyber-muted); cursor: not-allowed; box-shadow: none; }
 ```
 
 ---
 
-## Step 4 — Landing Camera Shake
+## Step 2 — Main Menu (Cyberpunk Redesign)
+
+Replace the Phase 3 placeholder with this full version.
 
 ```
-Add camera shake to PlayerCamera.jsx.
+Update src/ui/MainMenu.jsx with the cyberpunk design.
 
-Trigger: player becomes grounded after being airborne (detect the transition).
-The harder the landing (higher fall velocity Y), the stronger the shake.
+Full layout:
 
-Implementation:
-- When landing is detected, set shakeIntensity = clamp(abs(landingVelocityY) * 0.02, 0.02, 0.08)
-- In useFrame, if shakeIntensity > 0:
-    camera.position.x += (Math.random() - 0.5) * shakeIntensity
-    camera.position.y += (Math.random() - 0.5) * shakeIntensity
-    shakeIntensity *= 0.85  (decay per frame)
-    if shakeIntensity < 0.001: shakeIntensity = 0
+┌─────────────────────────────────────────────┐  ← scanlines overlay
+│                                              │
+│         V E G A  P A R K O U R              │  ← Press Start 2P, cyan, glitch-title class
+│         ─────────────────────               │  ← 1px cyan line
+│           CHOOSE YOUR RUN                   │  ← Share Tech Mono, muted, 12px
+│                                              │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  │
+│  │  LVL 01  │  │  LVL 02  │  │  LVL 03  │  │  ← cyber-panel cards
+│  │  EASY    │  │  MEDIUM  │  │  HARD    │  │
+│  │          │  │  🔒      │  │  🔒      │  │  ← locked = padlock + muted
+│  │  1:24 🥇 │  │          │  │          │  │  ← best time + medal if beaten
+│  └──────────┘  └──────────┘  └──────────┘  │
+│                                              │
+│            [ START LEVEL 1 ]                │  ← cyber-btn success, active level only
+│                                              │
+│  WASD MOVE · SPACE JUMP · SHIFT SPRINT · C SLIDE · E DASH  │  ← tiny hint row
+└─────────────────────────────────────────────┘
 
-Also add shake on boost pad activation (intensity 0.04, shorter decay).
-```
+Animated background (subtle — low opacity):
+  A CSS grid of dots using radial-gradient on a background-size tile:
+  background: radial-gradient(circle, rgba(0,255,240,0.07) 1px, transparent 1px);
+  background-size: 28px 28px;
+  Animate background-position slowly: @keyframes gridDrift { to { background-position: 28px 28px; } }
+  animation: gridDrift 6s linear infinite;
 
----
+Level cards:
+  - Unlocked: cyber-panel class, cyan border, hover scale 1.02 transform
+  - Locked: same panel but border --cyber-muted, color --cyber-muted, cursor not-allowed
+  - Click sets selectedLevel local state (default 0)
+  - Best time display: Share Tech Mono 11px, --cyber-yellow
+  - Medal emoji next to best time if applicable
 
-## Step 5 — Speed Lines
+START button:
+  - Shows "START LEVEL [selectedLevel + 1]"
+  - Only active for unlocked levels
 
-```
-Add speed lines as a particle effect in PlayerCamera.jsx or a separate SpeedLines.jsx.
-
-Trigger: show when player speed > 10 units/sec (sprinting or boosted).
-Intensity scales with speed — stronger during boost.
-
-Implementation using R3F Points or simple line geometry:
-- 30 thin line segments radiating outward from the camera centre
-- Each line starts at a random position on a small circle around the forward axis
-- Lines stream toward the camera (Z+ in camera space)
-- Opacity: 0 at low speed, lerp to 0.6 at max speed
-- Length: scales with speed
-
-Simplest approach — use a sprite-based solution:
-- Create a <Points> cloud of ~40 points in front of the camera
-- Move them toward camera each frame, reset when they pass the camera
-- Fade in/out based on current speed
-
-If this is taking too long: skip the geometry approach and use a CSS vignette 
-that intensifies at high speed (much simpler):
-- A div with radial-gradient from transparent centre to rgba(255,255,255,0.15) edge
-- CSS transition opacity 0.2s
-- Set opacity 0 at walk speed, 0.4 at sprint, 0.7 during boost
-```
-
----
-
-## Step 6 — Jump Squash/Stretch
-
-```
-Add squash and stretch to the player mesh in Player.jsx.
-
-Track the player's vertical velocity and grounded state.
-
-On jump (leaving ground):
-- Tween mesh scale from [1, 1, 1] to [0.85, 1.3, 0.85] over 0.1 sec (stretch upward)
-- Then lerp back to [1, 1, 1] over 0.3 sec
-
-On landing (hitting ground):
-- Tween mesh scale to [1.3, 0.7, 1.3] over 0.05 sec (squash on impact)
-- Then spring back to [1, 1, 1] over 0.2 sec
-
-Implementation:
-- Use a meshRef (separate from rigidBodyRef)
-- In useFrame, lerp the mesh scale each frame toward target scale
-- Store targetScale in a useRef
-
-Keep subtle — scale should be noticeable but not cartoonish.
+Hint row:
+  - Bottom of screen, Share Tech Mono 10px, --cyber-muted
+  - Single horizontal line, centered
 ```
 
 ---
 
-## Step 7 — Checkpoint Visual Polish
+## Step 3 — Death Screen (Cyberpunk Redesign)
+
+Replace the Phase 3 placeholder with this full version.
 
 ```
-Update Checkpoint.jsx visual and feedback.
+Update src/ui/DeathScreen.jsx with the cyberpunk design.
 
-When player activates a checkpoint:
-1. Ring colour transitions from white/grey to green (#44ff88) over 0.3 sec
-2. Particle burst: 12 small spheres burst outward from the ring position, 
-   fade out over 0.5 sec, then despawn
-   Use a simple loop with setTimeout or a useEffect to spawn then remove them
-3. (If time allows) Play a chime sound:
-   Use the Web Audio API oscillator — no audio file needed:
+Layout:
 
-   const ctx = new AudioContext();
-   const osc = ctx.createOscillator();
-   const gain = ctx.createGain();
-   osc.connect(gain); gain.connect(ctx.destination);
-   osc.frequency.value = 880;
-   gain.gain.setValueAtTime(0.3, ctx.currentTime);
-   gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-   osc.start(); osc.stop(ctx.currentTime + 0.4);
-```
+┌─────────────────────────────────────────────┐  ← scanlines, rgba(5,5,15,0.88) bg
+│                                              │
+│           S Y S T E M                       │
+│           F A I L U R E                     │  ← Press Start 2P, magenta, glitch anim
+│                                              │
+│     LEVEL 01     ☠ DEATHS: 3               │  ← Share Tech Mono, muted
+│                                              │
+│              [ RETRY ]                       │  ← cyber-btn danger (magenta)
+│                                              │
+│    ─────── SELECT LEVEL ───────             │  ← Share Tech Mono 10px, muted
+│                                              │
+│   [ LVL 01 ]   [ LVL 02 ]   [ LVL 03 ]    │  ← small cyber-btn, disabled if locked
+│                                              │
+│                [ MENU ]                      │  ← small, muted style
+└─────────────────────────────────────────────┘
 
----
+Entry animation:
+@keyframes deathEntry {
+  0%   { transform: translate(6px, 0) skewX(8deg); opacity: 0; }
+  30%  { transform: translate(-4px, 0) skewX(-4deg); opacity: 0.8; }
+  60%  { transform: translate(2px, 0); opacity: 1; }
+  100% { transform: none; opacity: 1; }
+}
+Apply to the "SYSTEM FAILURE" heading — animation: deathEntry 0.4s ease both;
 
-## Step 8 — Laser Warning Pulse
+Overlay fade-in: opacity 0 → 1 over 0.2 sec on mount.
 
-```
-Update Laser.jsx visual behaviour.
+Data to show:
+- currentLevel + 1 (from store)
+- deathCount (from store)
 
-During warningTime (0.4 sec before activating):
-- Oscillate the material emissiveIntensity between 0.2 and 1.5 in a sine wave
-- Use useFrame: emissiveIntensity = 0.2 + Math.sin(clock.elapsedTime * 20) * 0.65
-
-When active:
-- emissiveIntensity = 2.0 (full brightness, constant)
-
-When dormant:
-- emissiveIntensity = 0.1 (barely glowing, signals it exists but is safe)
-
-Add a thin "danger ring" disc mesh at each end of the laser cylinder that only shows during active state.
-```
-
----
-
-## Step 9 — Boost FOV Ease
-
-```
-This should already be partially implemented from Phase 2.
-Verify it feels good and tune if needed.
-
-Target behaviour:
-- Boost activates → FOV eases from 85 to 95 over 0.2 sec
-- Boost expires → FOV eases from 95 back to 85 over 0.4 sec
-- Sprinting (not boosted) → FOV eases to 90 over 0.3 sec
-- Walking → FOV returns to 85 over 0.3 sec
-
-In PlayerCamera.jsx useFrame:
-  const targetFOV = boostActive ? 95 : isSprinting ? 90 : 85;
-  camera.fov = THREE.MathUtils.lerp(camera.fov, targetFOV, 0.08);
-  camera.updateProjectionMatrix();
+Button actions:
+- RETRY      → startLevel(currentLevel)
+- LVL 01/02/03 → startLevel(n), disabled if not in unlockedLevels
+- MENU        → goToMenu()
 ```
 
 ---
 
-## Step 10 — Main Menu (if time allows)
+## Step 4 — Level Complete Screen (Cyberpunk Redesign)
+
+Replace the Phase 3 placeholder with this full version.
 
 ```
-Create src/ui/MainMenu.jsx.
+Update src/ui/LevelComplete.jsx with the cyberpunk design.
 
-Simple level select screen shown when gameStatus === "menu".
+STANDARD COMPLETE LAYOUT:
 
-Design:
-- Game title: "VEGA PARKOUR" in Press Start 2P font
-- Three level buttons in a row:
-    LEVEL 1 — always unlocked
-    LEVEL 2 — locked until Level 1 beaten (show a padlock icon)
-    LEVEL 3 — locked until Level 2 beaten
-- Each unlocked level shows your best time and medal beneath the button
-- Click → calls startLevel(index)
+┌─────────────────────────────────────────────┐  ← scanlines, dark bg
+│                                              │
+│         LEVEL 01 COMPLETE                   │  ← Press Start 2P, cyan, glitch-title
+│                                              │
+│    🥇  GOLD                                 │  ← medal, large, medalPop animation
+│                                              │
+│   ┌──────────────────────────────────────┐  │
+│   │  TIME REMAINING   1:24   × 10 = 840  │  │  ← Share Tech Mono
+│   │  ORBS COLLECTED     4    × 10 =  40  │  │
+│   │  ────────────────────────────────    │  │
+│   │  TOTAL SCORE               880       │  │  ← --cyber-yellow, neon glow, counts up
+│   └──────────────────────────────────────┘  │  ← cyber-panel class
+│                                              │
+│    [ NEXT LEVEL ]          [ RETRY ]        │  ← success btn / default btn
+│                                              │
+│    ─────── SELECT LEVEL ───────            │
+│   [ LVL 01 ]  [ LVL 02 ]  [ LVL 03 ]     │
+│               [ MENU ]                      │
+└─────────────────────────────────────────────┘
 
-For locked levels: button is greyed out, cursor: not-allowed, clicking does nothing.
-Store best times in Zustand: bestTimes: [null, null, null]
-Update on levelComplete: if current time < bestTimes[currentLevel], update it.
+YOU WIN (Level 3 complete):
+  - Replace heading with "RUN COMPLETE" in --cyber-yellow
+  - Add line: "YOU ARE IN THE 20%" in 10px muted text
+  - No NEXT LEVEL button
+
+Medal pop animation:
+@keyframes medalPop {
+  0%   { transform: scale(0) rotate(-15deg); opacity: 0; }
+  70%  { transform: scale(1.2) rotate(5deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0); }
+}
+animation: medalPop 0.5s ease 0.3s both;
+
+Medal logic:
+  timeRemaining >= targetTimes.gold   → 🥇 --cyber-yellow glow
+  timeRemaining >= targetTimes.silver → 🥈 silver (#b0b8c8)
+  timeRemaining >= targetTimes.bronze → 🥉 bronze (#cd7f32)
+  else                                → no medal, no glow
+
+Score count-up animation:
+  useEffect on mount → setInterval incrementing displayScore by ~total/40 every 20ms
+  until displayScore >= totalScore
+
+Score calc:
+  timeScore  = Math.floor(timeRemaining) * 10
+  orbScore   = orbsCollected * 10
+  totalScore = timeScore + orbScore
+
+Button actions:
+  NEXT LEVEL  → startLevel(currentLevel + 1)  (hidden/disabled if currentLevel === 2)
+  RETRY       → startLevel(currentLevel)
+  LVL 01/02/03 → startLevel(n), disabled if locked
+  MENU         → goToMenu()
+```
+
+---
+
+## Step 5 — HUD (Cyberpunk Redesign)
+
+Replace the Phase 3 placeholder with this full version.
+
+```
+Update src/ui/HUD.jsx — absolute overlay, z-index above canvas, only visible during "playing".
+
+LAYOUT (4 corners + centre top):
+
+  TOP LEFT         TOP CENTRE           TOP RIGHT
+  LEVEL 01/03     [  01:45  ]          ◈ 240 PTS
+                   (Press Start 2P)     +10 ↑ pop
+
+  BOTTOM LEFT                           BOTTOM RIGHT
+  BOOST ████░░░░                        DASH ●○
+
+TIMER (top centre):
+  - Press Start 2P 20px, --cyber-cyan normally
+  - Format: MM:SS
+  - Wrap in a small cyber-panel pill (dark bg, cyan border)
+  - Under 20 sec:
+    @keyframes timerPulse {
+      0%, 100% { transform: scale(1); text-shadow: 0 0 8px var(--cyber-magenta); }
+      50%      { transform: scale(1.08); text-shadow: 0 0 22px var(--cyber-magenta); }
+    }
+    color: var(--cyber-magenta); animation: timerPulse 0.5s ease infinite;
+
+SCORE (top right):
+  - Share Tech Mono 14px, --cyber-yellow
+  - ◈ (U+25C8) prefix
+  - +10 pop on orb collect: spawn a "+10" div, float up 30px + fade out over 0.6 sec
+  - Use an array of active pops in local state, clear after animation
+
+LEVEL INDICATOR (top left):
+  - Share Tech Mono 12px, --cyber-muted
+  - "LEVEL 01 / 03"
+
+DEATHS (top left, below level — small):
+  - ☠ {deathCount}
+  - --cyber-magenta if deathCount > 0, else --cyber-muted
+
+BOOST BAR (bottom left, only when boostActive):
+  - "BOOST" label 10px cyan above bar
+  - Bar: full = 2 sec, depletes left to right
+  - Color: --cyber-cyan, bg: --cyber-border
+  - Width: 120px, height 4px
+  - Fade in on boostActive, fade out after boost ends
+
+DASH COOLDOWN (bottom right):
+  - "DASH" label 10px below
+  - A small arc/circle (SVG or CSS border-radius trick) that fills over 2 sec
+  - --cyber-muted while on cooldown, --cyber-cyan when ready
+  - Expose dashReady and dashCooldownPct from store or pass as props from Player.jsx
+```
+
+---
+
+## Step 6 — Landing Camera Shake
+
+```
+Add to PlayerCamera.jsx.
+
+On airborne → grounded transition:
+  const landingVelocityY = Math.abs(rigidBodyRef.current.linvel().y);
+  shakeIntensity.current = Math.min(landingVelocityY * 0.02, 0.08);
+
+In useFrame:
+  if (shakeIntensity.current > 0.001) {
+    camera.position.x += (Math.random() - 0.5) * shakeIntensity.current;
+    camera.position.y += (Math.random() - 0.5) * shakeIntensity.current;
+    shakeIntensity.current *= 0.82;
+  } else {
+    shakeIntensity.current = 0;
+  }
+
+Also on boost pad activation: shakeIntensity.current = 0.04 with decay 0.88.
+```
+
+---
+
+## Step 7 — Speed Vignette + Chroma Shift
+
+```
+Add to HUD.jsx as two extra full-screen divs (pointer-events: none).
+
+SPEED VIGNETTE:
+.speed-vignette {
+  position: fixed; inset: 0; pointer-events: none;
+  transition: opacity 0.2s ease;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 40%,
+    rgba(0, 255, 240, 0.06) 70%,
+    rgba(0, 255, 240, 0.18) 100%
+  );
+}
+Opacity: 0 at walk, 0.5 at sprint, 1.0 during boost.
+Read playerSpeed from Zustand store (set by Player.jsx each frame).
+
+CHROMATIC ABERRATION (boost only):
+.chroma-shift {
+  position: fixed; inset: 0; pointer-events: none;
+  opacity: 0; transition: opacity 0.15s;
+  mix-blend-mode: screen;
+  background: linear-gradient(90deg,
+    rgba(255,0,170,0.04) 0%,
+    transparent 30%,
+    transparent 70%,
+    rgba(0,255,240,0.04) 100%
+  );
+}
+opacity: 1 when boostActive, 0 otherwise.
+```
+
+---
+
+## Step 8 — Jump Squash/Stretch
+
+```
+Add to Player.jsx.
+
+Use a separate meshRef for the visual capsule (not the physics body).
+const meshRef = useRef();
+const targetScale = useRef([1, 1, 1]);
+
+On jump start (leaving ground):
+  targetScale.current = [0.82, 1.28, 0.82];
+  setTimeout(() => { targetScale.current = [1, 1, 1]; }, 120);
+
+On landing:
+  targetScale.current = [1.28, 0.72, 1.28];
+  setTimeout(() => { targetScale.current = [1, 1, 1]; }, 80);
+
+In useFrame:
+  if (meshRef.current) {
+    meshRef.current.scale.x = THREE.MathUtils.lerp(meshRef.current.scale.x, targetScale.current[0], 0.22);
+    meshRef.current.scale.y = THREE.MathUtils.lerp(meshRef.current.scale.y, targetScale.current[1], 0.22);
+    meshRef.current.scale.z = THREE.MathUtils.lerp(meshRef.current.scale.z, targetScale.current[2], 0.22);
+  }
+```
+
+---
+
+## Step 9 — Checkpoint Visual Polish
+
+```
+Update Checkpoint.jsx.
+
+Inactive: torus, white emissive (#ffffff), emissiveIntensity: 0.15, slow Y rotation 0.4 rad/s.
+
+On activation (once per run):
+1. Tween emissive color to --cyber-green (#00ff88) over 0.3 sec
+   emissiveIntensity → 1.2
+2. Add pulsing outer ring (larger torus, scale 1→1.5, opacity 1→0, repeat every 1.5 sec)
+3. Particle burst: 10 small Box meshes at checkpoint position,
+   random outward positions over 0.4 sec, opacity fades to 0, then unmount
+
+Audio chime (Web Audio API):
+const playChime = () => {
+  const ctx = new AudioContext();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(880, ctx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.1);
+  gain.gain.setValueAtTime(0.25, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+  osc.start(); osc.stop(ctx.currentTime + 0.5);
+};
+```
+
+---
+
+## Step 10 — Laser Warning Pulse
+
+```
+Update Laser.jsx.
+
+DORMANT:   emissiveIntensity = 0.08, color #ff2200
+WARNING:   emissiveIntensity = 0.2 + Math.abs(Math.sin(clock.elapsedTime * 18)) * 1.3
+           color oscillates #ff2200 ↔ #ff8800
+ACTIVE:    emissiveIntensity = 2.4, color #ff2200
+           Add outer glow: slightly wider transparent cylinder with red emissive at 0.3 intensity
+           Add thin disc at each end of laser cylinder, radius slightly wider, emissiveIntensity 1.0
+
+In useFrame set material emissiveIntensity based on current state.
 ```
 
 ---
 
 ## STOP — Deploy at 3:45
 
-> Do not add anything new after 3:45. The last 15 minutes are for deploying. A game on a live URL is infinitely more impressive than a perfect game that only runs on your laptop.
+> Do not add anything new after 3:45. A live URL beats a perfect game running only on your laptop.
 
-### Deploy Checklist
+### Deploy Steps
 
-**1. Commit your code**
-```
-In GitHub Desktop:
-- Check all changed files are listed
-- Write a commit message: "VEGA Parkour — final submission"
-- Click "Commit to main"
-- Click "Push origin"
-```
-
-**2. Check for build errors first**
-```
+**1. Build check**
+```bash
 npm run build
 ```
-If it fails, paste the error into your AI pilot:
+If it fails, paste the error to your AI pilot:
 ```
-Running npm run build throws this error: [paste error]
-Fix it. The most likely cause is a case-sensitivity issue in an import path 
-(works on Mac, breaks on Linux/Vercel). Check all import statements.
+npm run build throws: [paste error]
+Most likely cause: import path case mismatch — macOS ignores case, Vercel Linux does not.
+Check all import statements match exact filename casing on disk.
+```
+
+**2. Commit and push**
+```
+GitHub Desktop → "VEGA Parkour — final" → Commit to main → Push origin
 ```
 
 **3. Deploy on Vercel**
-- Go to vercel.com/dashboard
-- Click "Add New → Project"
-- Find your GitHub repo → click "Import"
-- Framework: Vite (Vercel auto-detects this)
-- Build command: `npm run build`
-- Output directory: `dist`
-- Click "Deploy"
-- Wait ~60 seconds
+- vercel.com/dashboard → Add New → Project → Import repo
+- Framework: Vite (auto-detected)
+- Build: `npm run build` · Output: `dist`
+- Deploy → ~60 sec → copy URL
 
-**4. Test the live URL**
-- Open the Vercel URL on your phone
-- Try to play Level 1 on mobile
-- If it crashes: note it but don't fix it — submit the URL anyway
-
-**5. Share the URL**
-```
-my-parkour-game.vercel.app
-```
-This is your submission. This is the win condition.
+**4. Smoke test**
+- Open the URL on your phone
+- Does the cyberpunk main menu load?
+- Can you start Level 1?
+- If it loads at all — you shipped. Submit the URL.
 
 ---
 
-## Final Phase 4 Checklist
+## Final Checklist
 
 | Item | Done? |
 |---|---|
-| Death screen appears instantly on death | |
-| Retry button resets level correctly | |
-| Level complete screen shows correct score and medal | |
-| HUD shows timer (turns red under 20 sec) | |
-| HUD shows score | |
-| Landing shake feels good (not too strong) | |
-| Speed lines appear at sprint/boost speed | |
-| Jump has visible squash/stretch | |
-| Checkpoint ring turns green on activation | |
-| Laser pulses before activating | |
+| Global CSS tokens + fonts in index.html/css | |
+| Main menu — cyberpunk, level cards, lock state, best times | |
+| Death screen — magenta glitch entry, retry + level select + menu | |
+| Level complete — medal pop, score count-up, next/retry/menu | |
+| HUD — timer (red pulse under 20s), score +10 pop, boost bar, dash | |
+| Landing camera shake | |
+| Speed vignette + chroma shift on boost | |
+| Jump squash/stretch visible | |
+| Checkpoint ring turns green + particle burst + chime | |
+| Laser pulses magenta before activating | |
 | `npm run build` passes with no errors | |
 | Deployed to Vercel | |
-| Live URL opens and Level 1 is playable | |
+| Live URL: main menu loads, Level 1 is playable | |
 
 ---
 
-## Emergency Cuts (if behind schedule)
+## Emergency Cuts (if behind at 3:45)
 
-If any of these are not done by 3:45, cut them. They are not worth missing the deploy window.
+Drop these without hesitation. They do not affect playability.
 
-| Feature | Cut if needed? |
+| Feature | Safe to cut? |
 |---|---|
-| Main menu / level select | ✅ Cut — just auto-start Level 1 |
-| Dash afterimage | ✅ Cut |
-| Speed line geometry | ✅ Cut — use the CSS vignette instead |
-| Mobile touch controls | ✅ Cut |
-| Audio (all of it) | ✅ Cut — silent game still ships |
-| Fake tiles visual polish | ✅ Cut — slight opacity difference is enough |
-| Wall run camera tilt | ✅ Cut |
+| Animated grid background on menu | ✅ Static dark bg works fine |
+| Chromatic aberration shift | ✅ Keep the vignette, drop the chroma |
+| Score counter animation | ✅ Show the final number immediately |
+| Laser end-cap discs | ✅ Base laser glow is enough |
+| Checkpoint particle burst | ✅ Just the colour change is fine |
+| Death screen glitch entry animation | ✅ Plain fade-in is okay |
+| Checkpoint audio chime | ✅ Silent checkpoint still works |
 
 **Never cut:**
-- Death screen + retry button
-- Timer
-- End portal working
+- Main menu with level select + lock state
+- Death screen with RETRY and MENU buttons
+- Timer display
+- End portal triggering level complete
 - Deploy
 
 ---
 
-## Post-Jam (bonus, if you want to keep building)
+## Post-Jam Extensions
 
-- Ghost replay system for time trials
-- Mobile touch control overlay
-- Leaderboard (Neon Postgres — you already know this stack from Nexus/Dosmos)
-- Level 4 — player-designed via a JSON config editor
-- Multiplayer race mode (WebSocket)
+- Ghost replay (record position frames — store in Neon Postgres)
+- Leaderboard via Neon + Better Auth
+- Mobile touch controls overlay
+- Level editor: JSON config → shareable URL
+- Multiplayer race mode via WebSocket
 
 ---
 

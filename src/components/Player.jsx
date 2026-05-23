@@ -18,13 +18,14 @@ const FOOT_OFFSET = 1.22;
 const WALL_RUN_TIME = 1.2;
 const WALL_RUN_COOLDOWN = 0.5;
 const WALL_JUMP_LOCKOUT = 0.9;
-const WALL_JUMP_PUSH = 7;
+const WALL_JUMP_PUSH = 6;
+const WALL_JUMP_UP = 6.5;
 const SLIDE_TIME = 1;
 const SLIDE_COOLDOWN = 0.3;
 const DASH_TIME = 0.15;
 const DASH_COOLDOWN = 2;
 
-export const Player = forwardRef(({ cameraStateRef }, ref) => {
+export const Player = forwardRef(({ cameraStateRef, spawnPos = [0, 3, 0] }, ref) => {
   const bodyRef = useRef(null);
   const visualRef = useRef(null);
   const jumpCountRef = useRef(0);
@@ -36,6 +37,7 @@ export const Player = forwardRef(({ cameraStateRef }, ref) => {
   const wallRunTimerRef = useRef(0);
   const wallRunCooldownRef = useRef(0);
   const wallJumpLockoutRef = useRef(0);
+  const usedWallJumpRef = useRef(false);
   const needsJumpReleaseRef = useRef(false);
   const wallNormalRef = useRef(new THREE.Vector3());
   const slideTimerRef = useRef(0);
@@ -50,6 +52,10 @@ export const Player = forwardRef(({ cameraStateRef }, ref) => {
   const { world, rapier } = useRapier();
   const boostActive = useGameStore((state) => state.boostActive);
   const checkpointPos = useGameStore((state) => state.checkpointPos);
+  const gameStatus = useGameStore((state) => state.gameStatus);
+  const incrementDeaths = useGameStore((state) => state.incrementDeaths);
+  const playerDied = useGameStore((state) => state.playerDied);
+  const setPlayerSpeed = useGameStore((state) => state.setPlayerSpeed);
 
   const vectors = useMemo(
     () => ({
@@ -71,6 +77,11 @@ export const Player = forwardRef(({ cameraStateRef }, ref) => {
     const body = bodyRef.current;
     if (!body) return;
 
+    if (gameStatus !== 'playing') {
+      body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      return;
+    }
+
     tickCooldowns(delta);
 
     const keys = getKeys();
@@ -90,13 +101,15 @@ export const Player = forwardRef(({ cameraStateRef }, ref) => {
 
     if (position.y < -10) {
       respawn(body, checkpointPos);
+      incrementDeaths();
+      playerDied();
       return;
     }
 
     updateGroundState(grounded, delta);
     updateJumpBuffer(jumpPressed, delta);
 
-    const speedMultiplier = boostActive ? 1.8 : 1;
+    const speedMultiplier = boostActive ? 1.35 : 1;
     const targetSpeed = (keys.sprint ? SPRINT_SPEED : WALK_SPEED) * speedMultiplier;
 
     if (dashPressed && dashCooldownRef.current <= 0) {
@@ -136,6 +149,7 @@ export const Player = forwardRef(({ cameraStateRef }, ref) => {
       },
       true,
     );
+    setPlayerSpeed(Math.hypot(vectors.move.x * targetSpeed, vectors.move.z * targetSpeed));
 
     const canUseCoyoteJump = coyoteTimerRef.current > 0;
     const canDoubleJump = jumpCountRef.current < 2;
@@ -162,6 +176,7 @@ export const Player = forwardRef(({ cameraStateRef }, ref) => {
       coyoteTimerRef.current = COYOTE_TIME;
       jumpCountRef.current = 0;
       wallRunTimerRef.current = 0;
+      usedWallJumpRef.current = false;
     } else {
       coyoteTimerRef.current = Math.max(0, coyoteTimerRef.current - delta);
     }
@@ -235,6 +250,7 @@ export const Player = forwardRef(({ cameraStateRef }, ref) => {
       wallHit &&
       wallRunCooldownRef.current <= 0 &&
       wallJumpLockoutRef.current <= 0 &&
+      !usedWallJumpRef.current &&
       !needsJumpReleaseRef.current;
 
     if (wallRunTimerRef.current <= 0 && canWallRun) {
@@ -264,13 +280,14 @@ export const Player = forwardRef(({ cameraStateRef }, ref) => {
       body.applyImpulse(
         {
           x: wallNormalRef.current.x * WALL_JUMP_PUSH,
-          y: 9,
+          y: WALL_JUMP_UP,
           z: wallNormalRef.current.z * WALL_JUMP_PUSH,
         },
         true,
       );
       stopWallRun();
       wallJumpLockoutRef.current = WALL_JUMP_LOCKOUT;
+      usedWallJumpRef.current = true;
       needsJumpReleaseRef.current = true;
       jumpBufferRef.current = 0;
       return true;
@@ -285,7 +302,6 @@ export const Player = forwardRef(({ cameraStateRef }, ref) => {
       },
       true,
     );
-    body.addForce({ x: 0, y: 3, z: 0 }, true);
     wallRunTimerRef.current = Math.max(0, wallRunTimerRef.current - delta);
     if (wallRunTimerRef.current === 0) wallRunCooldownRef.current = WALL_RUN_COOLDOWN;
     return true;
@@ -310,7 +326,7 @@ export const Player = forwardRef(({ cameraStateRef }, ref) => {
       ref={bodyRef}
       name="player"
       type="dynamic"
-      position={[0, 3, 0]}
+      position={spawnPos}
       enabledRotations={[false, false, false]}
       gravityScale={2.5}
       colliders={false}

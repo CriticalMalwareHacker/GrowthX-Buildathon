@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { CuboidCollider, RigidBody } from '@react-three/rapier';
 import { useGameStore } from '../store/useGameStore';
 
-export const Checkpoint = ({ position, checkpoint = position }) => {
+export const Checkpoint = ({ position, checkpoint = position, index = -1 }) => {
   const ringRef = useRef(null);
   const activatedRef = useRef(false);
   const [active, setActive] = useState(false);
@@ -17,7 +17,7 @@ export const Checkpoint = ({ position, checkpoint = position }) => {
     if (activatedRef.current || other.rigidBodyObject?.name !== 'player') return;
     activatedRef.current = true;
     setActive(true);
-    setCheckpoint(checkpoint);
+    setCheckpoint(checkpoint, index);
     // TODO: Play checkpoint chime when Phase 4 audio assets are added.
   };
 

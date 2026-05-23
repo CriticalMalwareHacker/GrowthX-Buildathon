@@ -1,8 +1,21 @@
 import { create } from 'zustand';
+import { levels } from '../levels';
+
+const getMedalForTime = (timeRemaining, targetTimes) => {
+  if (timeRemaining >= targetTimes.gold) return 'gold';
+  if (timeRemaining >= targetTimes.silver) return 'silver';
+  if (timeRemaining >= targetTimes.bronze) return 'bronze';
+  return null;
+};
 
 export const useGameStore = create((set) => ({
-  gameStatus: 'playing',
+  gameStatus: 'menu',
   currentLevel: 0,
+  levelRunId: 0,
+  unlockedLevels: [0],
+  bestTimes: [null, null, null],
+  bestMedals: [null, null, null],
+  deathCount: 0,
 
   timeRemaining: 180,
   timerActive: false,
@@ -12,7 +25,6 @@ export const useGameStore = create((set) => ({
       const timeRemaining = Math.max(0, state.timeRemaining - delta);
       return {
         timeRemaining,
-        gameStatus: timeRemaining === 0 ? 'dead' : state.gameStatus,
         timerActive: timeRemaining > 0,
       };
     }),
@@ -39,15 +51,54 @@ export const useGameStore = create((set) => ({
     }),
 
   checkpointPos: [0, 2, 0],
-  setCheckpoint: (pos) => set({ checkpointPos: pos }),
+  checkpointIndex: -1,
+  setCheckpoint: (pos, index = -1) => set({ checkpointPos: pos, checkpointIndex: index }),
 
   startLevel: (index) =>
-    set({
+    set((state) => ({
       gameStatus: 'playing',
       currentLevel: index,
-      timeRemaining: [180, 150, 120][index] ?? 180,
+      levelRunId: state.levelRunId + 1,
+      timeRemaining: levels[index]?.timer ?? 180,
       timerActive: true,
+      deathCount: 0,
+      checkpointPos: levels[index]?.spawnPos ?? [0, 2, 0],
+      checkpointIndex: -1,
+      boostActive: false,
+      boostTimeLeft: 0,
+      score: 0,
+      orbsCollected: 0,
+    })),
+  levelComplete: () =>
+    set((state) => {
+      const idx = state.currentLevel;
+      const nextIdx = idx + 1;
+      const unlockedLevels =
+        nextIdx < levels.length && !state.unlockedLevels.includes(nextIdx)
+          ? [...state.unlockedLevels, nextIdx]
+          : state.unlockedLevels;
+      const medal = getMedalForTime(state.timeRemaining, levels[idx].targetTimes);
+      const timeRemaining = Math.floor(state.timeRemaining);
+      const bestTimes = [...state.bestTimes];
+      const bestMedals = [...state.bestMedals];
+
+      if (bestTimes[idx] === null || timeRemaining > bestTimes[idx]) {
+        bestTimes[idx] = timeRemaining;
+        bestMedals[idx] = medal;
+      }
+
+      return {
+        gameStatus: 'levelComplete',
+        timerActive: false,
+        unlockedLevels,
+        bestTimes,
+        bestMedals,
+      };
     }),
-  levelComplete: () => set({ gameStatus: 'levelComplete', timerActive: false }),
-  playerDied: () => set({ gameStatus: 'dead' }),
+  playerDied: () => set({ gameStatus: 'dead', timerActive: false }),
+  respawnAtCheckpoint: () => set({ gameStatus: 'playing', timerActive: true, boostActive: false, boostTimeLeft: 0 }),
+  incrementDeaths: () => set((state) => ({ deathCount: state.deathCount + 1 })),
+  playerSpeed: 0,
+  setPlayerSpeed: (speed) => set({ playerSpeed: speed }),
+  goToMenu: () => set({ gameStatus: 'menu', timerActive: false }),
 }));
