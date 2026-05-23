@@ -39,7 +39,7 @@ export const useGameStore = create((set) => ({
 
   boostActive: false,
   boostTimeLeft: 0,
-  activateBoost: () => set({ boostActive: true, boostTimeLeft: 2 }),
+  activateBoost: () => set((state) => ({ boostActive: true, boostTimeLeft: 2, cameraShake: Math.max(state.cameraShake, 0.04) })),
   tickBoost: (delta) =>
     set((state) => {
       if (!state.boostActive) return {};
@@ -100,5 +100,15 @@ export const useGameStore = create((set) => ({
   incrementDeaths: () => set((state) => ({ deathCount: state.deathCount + 1 })),
   playerSpeed: 0,
   setPlayerSpeed: (speed) => set({ playerSpeed: speed }),
+  dashReady: true,
+  dashCooldownPct: 1,
+  setDashState: (dashReady, dashCooldownPct) => set({ dashReady, dashCooldownPct }),
+  cameraShake: 0,
+  triggerCameraShake: (amount) => set((state) => ({ cameraShake: Math.max(state.cameraShake, amount) })),
+  consumeCameraShake: () => {
+    const amount = useGameStore.getState().cameraShake;
+    set({ cameraShake: 0 });
+    return amount;
+  },
   goToMenu: () => set({ gameStatus: 'menu', timerActive: false }),
 }));

@@ -47,6 +47,9 @@ export const Player = forwardRef(({ cameraStateRef, spawnPos = [0, 3, 0] }, ref)
   const dashTimerRef = useRef(0);
   const dashCooldownRef = useRef(0);
   const dashDirectionRef = useRef(new THREE.Vector3());
+  const wasGroundedRef = useRef(false);
+  const squashTargetRef = useRef([1, 1, 1]);
+  const squashTimerRef = useRef(0);
   const [isSliding, setIsSliding] = useState(false);
   const [, getKeys] = useKeyboardControls();
   const { world, rapier } = useRapier();
@@ -56,6 +59,8 @@ export const Player = forwardRef(({ cameraStateRef, spawnPos = [0, 3, 0] }, ref)
   const incrementDeaths = useGameStore((state) => state.incrementDeaths);
   const playerDied = useGameStore((state) => state.playerDied);
   const setPlayerSpeed = useGameStore((state) => state.setPlayerSpeed);
+  const setDashState = useGameStore((state) => state.setDashState);
+  const triggerCameraShake = useGameStore((state) => state.triggerCameraShake);
 
   const vectors = useMemo(
     () => ({
@@ -88,6 +93,11 @@ export const Player = forwardRef(({ cameraStateRef, spawnPos = [0, 3, 0] }, ref)
     const velocity = body.linvel();
     const position = body.translation();
     const grounded = isGrounded(world, rapier, position, body);
+    if (!wasGroundedRef.current && grounded) {
+      triggerSquash([1.28, 0.72, 1.28], 0.08);
+      triggerCameraShake(Math.min(Math.abs(velocity.y) * 0.02, 0.08));
+    }
+    wasGroundedRef.current = grounded;
     const jumpPressed = keys.jump && !wasJumpPressedRef.current;
     const slidePressed = keys.slide && !wasSlidePressedRef.current;
     const dashPressed = keys.dash && !wasDashPressedRef.current;
@@ -101,6 +111,7 @@ export const Player = forwardRef(({ cameraStateRef, spawnPos = [0, 3, 0] }, ref)
 
     if (position.y < -10) {
       respawn(body, checkpointPos);
+      resetAirActions();
       incrementDeaths();
       playerDied();
       return;
@@ -156,6 +167,7 @@ export const Player = forwardRef(({ cameraStateRef, spawnPos = [0, 3, 0] }, ref)
     if (jumpBufferRef.current > 0 && (canUseCoyoteJump || canDoubleJump)) {
       body.setLinvel({ x: vectors.move.x * targetSpeed, y: 0, z: vectors.move.z * targetSpeed }, true);
       body.applyImpulse({ x: 0, y: JUMP_IMPULSE, z: 0 }, true);
+      triggerSquash([0.82, 1.28, 0.82], 0.12);
       jumpCountRef.current += 1;
       coyoteTimerRef.current = 0;
       jumpBufferRef.current = 0;
@@ -169,6 +181,8 @@ export const Player = forwardRef(({ cameraStateRef, spawnPos = [0, 3, 0] }, ref)
     wallJumpLockoutRef.current = Math.max(0, wallJumpLockoutRef.current - delta);
     slideCooldownRef.current = Math.max(0, slideCooldownRef.current - delta);
     dashCooldownRef.current = Math.max(0, dashCooldownRef.current - delta);
+    setDashState(dashCooldownRef.current <= 0, 1 - dashCooldownRef.current / DASH_COOLDOWN);
+    tickSquash(delta);
   };
 
   const updateGroundState = (grounded, delta) => {
@@ -221,6 +235,7 @@ export const Player = forwardRef(({ cameraStateRef, spawnPos = [0, 3, 0] }, ref)
       endSlide();
       body.setLinvel({ x: slideDirectionRef.current.x * SPRINT_SPEED, y: 0, z: slideDirectionRef.current.z * SPRINT_SPEED }, true);
       body.applyImpulse({ x: 0, y: JUMP_IMPULSE, z: 0 }, true);
+      triggerSquash([0.82, 1.28, 0.82], 0.12);
       jumpBufferRef.current = 0;
       return;
     }
@@ -285,6 +300,7 @@ export const Player = forwardRef(({ cameraStateRef, spawnPos = [0, 3, 0] }, ref)
         },
         true,
       );
+      triggerSquash([0.82, 1.28, 0.82], 0.12);
       stopWallRun();
       wallJumpLockoutRef.current = WALL_JUMP_LOCKOUT;
       usedWallJumpRef.current = true;
@@ -317,8 +333,30 @@ export const Player = forwardRef(({ cameraStateRef, spawnPos = [0, 3, 0] }, ref)
       visualRef.current.rotation.y = Math.atan2(moveVector.x, moveVector.z);
     }
     if (visualRef.current) {
-      visualRef.current.scale.y += ((isSliding ? 0.5 : 1) - visualRef.current.scale.y) * 0.35;
+      const slideScaleY = isSliding ? 0.5 : 1;
+      visualRef.current.scale.x = THREE.MathUtils.lerp(visualRef.current.scale.x, squashTargetRef.current[0], 0.22);
+      visualRef.current.scale.y = THREE.MathUtils.lerp(visualRef.current.scale.y, squashTargetRef.current[1] * slideScaleY, 0.22);
+      visualRef.current.scale.z = THREE.MathUtils.lerp(visualRef.current.scale.z, squashTargetRef.current[2], 0.22);
     }
+  };
+
+  const triggerSquash = (scale, duration) => {
+    squashTargetRef.current = scale;
+    squashTimerRef.current = duration;
+  };
+
+  const tickSquash = (delta) => {
+    if (squashTimerRef.current <= 0) return;
+    squashTimerRef.current = Math.max(0, squashTimerRef.current - delta);
+    if (squashTimerRef.current === 0) squashTargetRef.current = [1, 1, 1];
+  };
+
+  const resetAirActions = () => {
+    wallRunTimerRef.current = 0;
+    wallJumpLockoutRef.current = 0;
+    usedWallJumpRef.current = false;
+    needsJumpReleaseRef.current = false;
+    dashTimerRef.current = 0;
   };
 
   return (

@@ -22,7 +22,7 @@ export const Laser = ({ config }) => {
     const t = elapsedRef.current;
     const nextPhase = t < config.warningTime ? 'warning' : t < config.warningTime + config.onTime ? 'active' : 'off';
     if (nextPhase !== phase) setPhase(nextPhase);
-    setIntensity(nextPhase === 'active' ? 1.3 : nextPhase === 'warning' ? 0.2 + Math.abs(Math.sin(t * 18)) * 0.8 : 0);
+    setIntensity(nextPhase === 'active' ? 2.4 : nextPhase === 'warning' ? 0.2 + Math.abs(Math.sin(t * 18)) * 1.3 : 0.08);
 
     angleRef.current += config.rotSpeed * delta;
     if (bodyRef.current) {
@@ -36,8 +36,14 @@ export const Laser = ({ config }) => {
       {phase === 'active' && <CuboidCollider args={colliderArgs} sensor onIntersectionEnter={killPlayer} />}
       <mesh rotation={rotation}>
         <cylinderGeometry args={[0.05, 0.05, length, 16]} />
-        <meshStandardMaterial color="#ff2200" emissive="#ff2200" emissiveIntensity={intensity} transparent opacity={phase === 'off' ? 0.2 : 1} />
+        <meshStandardMaterial color={phase === 'warning' ? '#ff8800' : '#ff2200'} emissive={phase === 'warning' ? '#ff8800' : '#ff2200'} emissiveIntensity={intensity} transparent opacity={phase === 'off' ? 0.25 : 1} />
       </mesh>
+      {phase === 'active' && (
+        <mesh rotation={rotation}>
+          <cylinderGeometry args={[0.12, 0.12, length, 16]} />
+          <meshStandardMaterial color="#ff2200" emissive="#ff2200" emissiveIntensity={0.3} transparent opacity={0.35} />
+        </mesh>
+      )}
     </RigidBody>
   );
 };
